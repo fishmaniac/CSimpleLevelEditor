@@ -122,6 +122,14 @@ void initMenu(App_s *app) {
 	strcpy_s(button[1].text, sizeof(heightText), heightText);
 	strcpy_s(button[1].prefix, sizeof(heightPrefix), heightPrefix);
 
+	button[2].rect.x = 450;
+	button[2].rect.y = app->windowHeight / 2;
+	button[2].rect.w = 300;
+	button[2].rect.h = 100;
+	char startText[] = "START EDITOR";
+	strcpy_s(button[2].text, sizeof(startText), startText);
+	strcpy_s(button[2].prefix, 1, "");
+
 	app->font = TTF_OpenFont("assets/font/slkscr.ttf", FONT_SIZE);
 	if (app->font == NULL) {
 		SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "UNABLE TO LOAD FONT %p\n", app->font);
@@ -136,19 +144,24 @@ void initMenu(App_s *app) {
 			createButton(app, button);
 			checkCollision(app, &button[0]);
 			checkCollision(app, &button[1]);
+			checkCollision(app, &button[2]);
 
 
 			SDL_SetRenderDrawColor(app->renderer, 255, 0, 0, 255);
 			SDL_RenderFillRect(app->renderer, &button[0].rect);
 			SDL_RenderCopy(app->renderer, button[0].texture, NULL, &button[0].rect);
 			
-
 			SDL_SetRenderDrawColor(app->renderer, 255, 0, 255, 255);
 			SDL_RenderFillRect(app->renderer, &button[1].rect);
 			SDL_RenderCopy(app->renderer, button[1].texture, NULL, &button[1].rect);
 			
+			SDL_SetRenderDrawColor(app->renderer, 0, 0, 255, 255);
+			SDL_RenderFillRect(app->renderer, &button[2].rect);
+			SDL_RenderCopy(app->renderer, button[2].texture, NULL, &button[2].rect);
+			
 			doInput(app, &button[0]);
 			doInput(app, &button[1]);
+			doInput(app, &button[2]);
 			if (button[0].colliding && button[0].leftClick) {
 
 				button[0].focused = true;
@@ -169,6 +182,9 @@ void initMenu(App_s *app) {
 
 				button[1].focused = false;
 			}
+			if (button[2].colliding && button[2].leftClick) {
+				app->menu = false;
+			}
 
 			SDL_RenderPresent(app->renderer);
 			SDL_RenderClear(app->renderer);
@@ -184,6 +200,8 @@ void initMenu(App_s *app) {
 		SDL_FreeSurface(button[0].surface);
 		SDL_DestroyTexture(button[1].texture);
 		SDL_FreeSurface(button[1].surface);
+		SDL_DestroyTexture(button[2].texture);
+		SDL_FreeSurface(button[2].surface);
 
 	}
 }
@@ -288,26 +306,34 @@ void doInput(App_s *app, Button_s button[]) {
 				if (event.button.button == SDL_BUTTON_LEFT) {
 					SDL_CaptureMouse(SDL_TRUE);
 					app->leftClick = true;
-					button->leftClick = true;
+					for (int i = 0; i < BUTTON_AMT; i++) {
+						button[i].leftClick = true;
+					}
 					break;
 				}
 				if (event.button.button == SDL_BUTTON_RIGHT) {
 					SDL_CaptureMouse(SDL_TRUE);
 					app->rightClick = true;
-					button->rightClick = true;
+					for (int i = 0; i < BUTTON_AMT; i++) {
+						button[i].rightClick = true;
+					}
 					break;
 				}
 			case SDL_MOUSEBUTTONUP:
 				if (event.button.button == SDL_BUTTON_LEFT) {
 					SDL_CaptureMouse(SDL_FALSE);
 					app->leftClick = false;
-					button->leftClick = false;
+					for (int i = 0; i < BUTTON_AMT; i++) {
+						button[i].leftClick = false;
+					}
 					break;
 				}
 				if (event.button.button == SDL_BUTTON_RIGHT) {
 					SDL_CaptureMouse(SDL_FALSE);
 					app->rightClick = false;
-					button->rightClick = false;
+					for (int i = 0; i < BUTTON_AMT; i++) {
+						button[i].rightClick = false;
+					}	
 					break;
 				}
 			case SDL_WINDOWEVENT:

@@ -21,7 +21,7 @@
 #define FONT_SIZE 16
 #define MAX_TEXT 100
 
-#define BUTTON_AMT 2
+#define BUTTON_AMT 3
 
 #define COLOR_WHITE (SDL_Color){255, 255, 255, 255}
 #define COLOR_BLACK (SDL_Color){0, 0, 0, 255}
