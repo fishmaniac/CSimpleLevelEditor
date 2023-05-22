@@ -1,4 +1,5 @@
 #include "common.h"
+#include <stdbool.h>
 
 
 
@@ -10,7 +11,7 @@ typedef struct {
 	SDL_Window *window;
 	SDL_Point mousePoint;
 	TTF_Font *font;
-	int x, y, mouseX, mouseY, windowWidth, windowHeight, camX, camY, initialWindowWidth, initialWindowHeight, clickType, levelWidth, levelHeight;
+	int x, y, mouseX, mouseY, windowWidth, windowHeight, camX, camY, initialWindowWidth, initialWindowHeight, clickType, levelWidth, levelHeight, distanceTraveled;
 	bool up, down, left, right, leftClick, rightClick, menu;
 } App_s;
 
@@ -53,6 +54,7 @@ void renderPrepare(App_s *app);
 void initWindow(App_s *app);
 void cleanupWindow(App_s *app);
 void resizeRectangle(Button_s button[], App_s *app);
+void updateCamera(App_s *app);
 
 #ifdef _WIN32
 #ifdef _WIN64
@@ -76,6 +78,13 @@ int main(int argc, char* argv[]) {
 	app.initialWindowHeight = SCREEN_HEIGHT;
 	app.levelWidth = MAP_WIDTH;
 	app.levelHeight = MAP_HEIGHT;
+	app.left = false;
+	app.right = false;
+	app.up = false;
+	app.down = false;
+	app.x = 0;
+	app.y = 0;
+/* 	printf("x: %d\ty: %d\n", app.x, app.y); */
 
 	initWindow(&app);
 	initMenu(&app);
@@ -83,13 +92,14 @@ int main(int argc, char* argv[]) {
 	printf("WIDTH: %d\tHEIGHT: %d\n", app.levelWidth, app.levelHeight);
 	grid = initMap(app.levelWidth, app.levelHeight);
 	
-	app.camX = (SCREEN_WIDTH / 2);
-	app.camY = (SCREEN_HEIGHT / 2);
+	// app.camX = (SCREEN_WIDTH / 2);
+	// app.camY = (SCREEN_HEIGHT / 2);
 
 	appLoop(&app, grid);
 	
 
 	printf("Hello, world!");
+	free(grid);
 	cleanupWindow(&app);
 	
 	return 0;
@@ -97,20 +107,20 @@ int main(int argc, char* argv[]) {
 
 void appLoop(App_s *app, Grid_s *grid) {
 	Button_s button[BUTTON_AMT_APP];
-	button[0].rect.x = 100;
-	button[0].rect.y = 600;
-	button[0].rect.w = 32;
+	button[0].rect.x = 0;
+	button[0].rect.y = 0;
+	button[0].rect.w = 64;
 	button[0].rect.h = 32;
 	button[0].focused = false;
-	char widthText[] = "test:";
+	char widthText[] = "TILE";
 	strcpy_s(button[0].text, sizeof(widthText), widthText);
 	strcpy_s(button[0].prefix, 1, "");
-	button[1].rect.x = 800;
-	button[1].rect.y = 100;
-	button[1].rect.w = 32;
+	button[1].rect.x = 64;
+	button[1].rect.y = 0;
+	button[1].rect.w = 64;
 	button[1].rect.h = 32;
 	button[1].focused = false;
-	char heightText[] = "test3";
+	char heightText[] = "PLATFORM";
 	strcpy_s(button[1].text, sizeof(heightText), heightText);
 	strcpy_s(button[1].prefix, 1, "");
 	button[2].rect.x = 450;
@@ -137,13 +147,14 @@ void appLoop(App_s *app, Grid_s *grid) {
 		checkCollision(app, &button[0]);
 		checkCollision(app, &button[1]);
 		checkCollision(app, &button[2]);
-
-
-		SDL_SetRenderDrawColor(app->renderer, 255, 0, 0, 255);
+		
+		SDL_SetRenderDrawBlendMode(app->renderer, SDL_BLENDMODE_BLEND);
+		
+		SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 0);
 		SDL_RenderFillRect(app->renderer, &button[0].rect);
 		SDL_RenderCopy(app->renderer, button[0].texture, NULL, &button[0].rect);
 
-		SDL_SetRenderDrawColor(app->renderer, 255, 0, 255, 255);
+		SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 0);
 		SDL_RenderFillRect(app->renderer, &button[1].rect);
 		SDL_RenderCopy(app->renderer, button[1].texture, NULL, &button[1].rect);
 
@@ -152,7 +163,6 @@ void appLoop(App_s *app, Grid_s *grid) {
 		SDL_RenderCopy(app->renderer, button[2].texture, NULL, &button[2].rect);
 		
 		//printf("W: %d H: %d\n", app->windowWidth, app->windowHeight);
-
 		
 		if (button[0].colliding && button[0].leftClick) {
 			app->clickType = 2;
@@ -161,6 +171,35 @@ void appLoop(App_s *app, Grid_s *grid) {
 		if (button[1].colliding && button[1].leftClick) {
 			app->clickType = 3;
 		}
+		if (app->up) {
+			app->y -= 1;
+			app->up = false;
+		}
+		else if (!app->up) {
+			app->y += 1;
+		}
+		if (app->down) {
+			app->y += 1;
+			app->down = false;
+		}
+		else if (!app->down) {
+			app->y -= 1;
+		}
+		if (app->left) {
+			app->x -= 1;
+			app->left = false;
+		}
+		else if (!app->left) {
+			app->x += 1;
+		}
+		if (app->right) {
+			app->x += 1;
+			app->right = false;
+		}
+		else if (!app->right) {
+			app->x -= 1;
+		}
+
 
 		SDL_RenderPresent(app->renderer);
 		SDL_RenderClear(app->renderer);
@@ -275,8 +314,6 @@ void initMenu(App_s *app) {
 	}
 }
 
-
-
 void handleTextInput(Button_s button[], SDL_Event event) {
 	for (int i = 0; i < BUTTON_AMT; i++) {
 		if (button[i].focused) {
@@ -313,42 +350,37 @@ Grid_s *initMap(unsigned width, unsigned height) {
 void renderMap(App_s *app, Grid_s *grid) {
 	for (int y = 0; y < app->levelHeight; y++) {
 		for (int x = 0; x < app->levelWidth; x++) {
-			Tile_s tile = grid->tile[y][x];
-			
-			if (checkCollisionMap(app, &tile) && app->leftClick) {
+
+			if (checkCollisionMap(app, &grid->tile[y][x]) && app->leftClick) {
 				grid->tile[y][x].type = app->clickType;
 				printf("TYPE: %d\ty: %d\tx: %d\tleftClick: %d\trightClick: %d\tclickType: %d\n", grid->tile[y][x].type, y, x, app->leftClick, app->rightClick, app->clickType);
 			}
-			if (checkCollisionMap(app, &tile) && app->rightClick) {
+			if (checkCollisionMap(app, &grid->tile[y][x]) && app->rightClick) {
 				grid->tile[y][x].type = 0;
 				printf("TYPE: %d\ty: %d\tx: %d\tleftClick: %d\trightClick: %d\tclickType: %d\n", grid->tile[y][x].type, y, x, app->leftClick, app->rightClick, app->clickType);
 			}
 
 			SDL_Color color;
-			if (tile.type == 0) {
+			if (grid->tile[y][x].type == 0) {
 				color = COLOR_WHITE;
 			} 
-			else if (tile.type == 2) {
+			else if (grid->tile[y][x].type == 2) {
+				printf("RENDER MAP: x: %d\ty: %d\n", app->camX, app->camY);
 				color = COLOR_BLACK;
 			}
-			else if (tile.type == 3) {
+			else if (grid->tile[y][x].type == 3) {
 				color = COLOR_GREEN;
 			}
 
-			SDL_SetRenderDrawColor(app->renderer, color.r, color.g, color.b, color.a);
-			SDL_RenderFillRect(app->renderer, &tile.rect);
 
-			
+			SDL_SetRenderDrawColor(app->renderer, color.r, color.g, color.b, color.a);
+
+			SDL_RenderFillRect(app->renderer, &grid->tile[y][x].rect);
+
+			grid->tile[y][x].rect.x -= app->x;
+			grid->tile[y][x].rect.y -= app->y;
 		}
 	}
-	// if (collidingTiles > 0) {
-	// 	player->isColliding = true;
-	//
-	// }
-	//
-	// if (!player->isColliding) {
-	// 	player->y += FRAME_TIME;
-	// }
 }
 
 void checkCollision(App_s *app, Button_s *button) {
@@ -430,7 +462,7 @@ void doInput(App_s *app, Button_s button[]) {
 				break;
 			case SDL_TEXTINPUT:
 				handleTextInput(button, event);
-			break;
+				break;
 			case SDL_MOUSEMOTION:
 				app->mousePoint.x = event.motion.x;
 				app->mousePoint.y = event.motion.y;
@@ -497,6 +529,18 @@ void doKeyDown(App_s *app, Button_s button[], SDL_KeyboardEvent *event) {
 					}
 				}
 			}
+			if (event->keysym.scancode == SDL_SCANCODE_W) {
+				app->up = true;
+			}
+			if (event->keysym.scancode == SDL_SCANCODE_S) {
+				app->down = true;
+			}
+			if (event->keysym.scancode == SDL_SCANCODE_A) {
+				app->left = true;
+			}
+			if (event->keysym.scancode == SDL_SCANCODE_D) {
+				app->right = true;
+			}
 		}
 	}
 }
@@ -515,10 +559,6 @@ void doKeyUp(App_s *app, SDL_KeyboardEvent *event) {
 		if (event->keysym.scancode == SDL_SCANCODE_D) {
 			app->right = false;
 		}
-		// if (event->keysym.scancode == SDL_SCANCODE_LSHIFT && player->stamina > 0 && app->sprint ) {
-		// 	player->speed /= SPRINT_SCALAR;
-		// 	app->sprint = false;
-		// }
 	}
 }
 
@@ -544,3 +584,7 @@ void resizeRectangle(Button_s button[], App_s* app) {
 	}
 }
 
+void updateCamera(App_s *app) {
+	app->camX = app->x - (SCREEN_WIDTH / 2);
+	app->camY = app->y - (SCREEN_HEIGHT / 2);
+}
