@@ -29,14 +29,20 @@ typedef struct {
 	bool colliding;
 } Tile_s;
 
+typedef struct {
+	unsigned width;
+	unsigned height;
+	Tile_s *tile[];
+} Grid_s;
+
 #endif
 
-void appLoop(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]);
+void appLoop(App_s *app, Grid_s *grid);
 
 void initMenu(App_s *app);
 void handleTextInput(Button_s *inputBox, SDL_Event event);
-void initMap(Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]);
-void renderMap(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]);
+Grid_s *initMap(unsigned width, unsigned height);
+void renderMap(App_s *app, Grid_s *grid);
 void checkCollision(App_s *app, Button_s *button);
 bool checkCollisionMap(App_s *app, Tile_s *tile);
 void createButton(App_s *app, Button_s button[]);
@@ -61,7 +67,7 @@ int WinMain(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 	App_s app;
-	Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH];
+	Grid_s *grid;
 
 	app.menu = true;
 	app.windowWidth = SCREEN_WIDTH;
@@ -73,12 +79,14 @@ int main(int argc, char* argv[]) {
 
 	initWindow(&app);
 	initMenu(&app);
-
-	initMap(tileMap);
+	
+	printf("WIDTH: %d\tHEIGHT: %d\n", app.levelWidth, app.levelHeight);
+	grid = initMap(app.levelWidth, app.levelHeight);
 	
 	app.camX = (SCREEN_WIDTH / 2);
 	app.camY = (SCREEN_HEIGHT / 2);
-	appLoop(&app, tileMap);
+
+	appLoop(&app, grid);
 	
 
 	printf("Hello, world!");
@@ -87,12 +95,7 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-void appLoop(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
-	SDL_Rect rect;
-	rect.x = 100;    
-	rect.y = 100;    
-	rect.w = 200;    
-	rect.h = 150;    
+void appLoop(App_s *app, Grid_s *grid) {
 	Button_s button[BUTTON_AMT_APP];
 	button[0].rect.x = 100;
 	button[0].rect.y = 600;
@@ -110,7 +113,6 @@ void appLoop(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
 	char heightText[] = "test3";
 	strcpy_s(button[1].text, sizeof(heightText), heightText);
 	strcpy_s(button[1].prefix, 1, "");
-
 	button[2].rect.x = 450;
 	button[2].rect.y = app->windowHeight / 2;
 	button[2].rect.w = 32;
@@ -128,11 +130,9 @@ void appLoop(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
 
 		doInput(app, button);
 		renderPrepare(app);
-/* 		doInput(app, &button); */
 
-		SDL_SetRenderDrawColor(app->renderer, 255, 0, 0, 255);
-		SDL_RenderFillRect(app->renderer, &rect);
-		renderMap(app, tileMap);
+
+		renderMap(app, grid);
 		createButton(app, button);
 		checkCollision(app, &button[0]);
 		checkCollision(app, &button[1]);
@@ -152,6 +152,7 @@ void appLoop(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
 		SDL_RenderCopy(app->renderer, button[2].texture, NULL, &button[2].rect);
 		
 		//printf("W: %d H: %d\n", app->windowWidth, app->windowHeight);
+
 		
 		if (button[0].colliding && button[0].leftClick) {
 			app->clickType = 2;
@@ -235,8 +236,6 @@ void initMenu(App_s *app) {
 			SDL_RenderFillRect(app->renderer, &button[2].rect);
 			SDL_RenderCopy(app->renderer, button[2].texture, NULL, &button[2].rect);
 			
-			printf("W: %d H: %d\n", app->windowWidth, app->windowHeight);
-
 			doInput(app, button);
 
 			if (button[0].colliding && button[0].leftClick) {
@@ -263,9 +262,9 @@ void initMenu(App_s *app) {
 			SDL_Delay(FRAME_TIME - elapsedTime);
 			}
 		}
-		app->windowWidth = atoi(button[0].text);
-		app->windowHeight = atoi(button[1].text);
-
+		app->levelWidth = atoi(button[0].text);
+		app->levelHeight = atoi(button[1].text);
+		printf("WIDTH: %d\tHEIGHT: %d\n", app->levelWidth, app->levelHeight);
 		SDL_DestroyTexture(button[0].texture);
 		SDL_FreeSurface(button[0].surface);
 		SDL_DestroyTexture(button[1].texture);
@@ -286,30 +285,43 @@ void handleTextInput(Button_s button[], SDL_Event event) {
 	}
 }
 
-void initMap(Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
-	for (int y = 0; y < MAP_HEIGHT; y++) {
-		for (int x = 0; x < MAP_WIDTH; x++) {
-			tileMap[y][x].type = 0;
-			tileMap[y][x].rect.x = x * TILE_SIZE;
-			tileMap[y][x].rect.y = y * TILE_SIZE;
-			tileMap[y][x].rect.w = TILE_SIZE;
-			tileMap[y][x].rect.h = TILE_SIZE;
+Grid_s *initMap(unsigned width, unsigned height) {
+	size_t bytes = sizeof(Grid_s);
+	bytes += height * sizeof(Tile_s*);
+	Grid_s *grid = malloc(bytes);
+	grid->width = width;
+	grid->height = height;
+	grid->tile[0] = malloc(width * height * sizeof(Tile_s));
+
+	for (unsigned ii = 1; ii < height; ii++) {
+		grid->tile[ii] = grid->tile[0] + ii * width;
+	}
+
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+			grid->tile[y][x].type = 0;
+			grid->tile[y][x].rect.x = x * TILE_SIZE;
+			grid->tile[y][x].rect.y = y * TILE_SIZE;
+			grid->tile[y][x].rect.w = TILE_SIZE;
+			grid->tile[y][x].rect.h = TILE_SIZE;
 		}
 	}
+	
+	return grid;
 }
 
-void renderMap(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
-	for (int y = 0; y < MAP_HEIGHT; y++) {
-		for (int x = 0; x < MAP_WIDTH; x++) {
-			Tile_s tile = tileMap[y][x];
+void renderMap(App_s *app, Grid_s *grid) {
+	for (int y = 0; y < app->levelHeight; y++) {
+		for (int x = 0; x < app->levelWidth; x++) {
+			Tile_s tile = grid->tile[y][x];
 			
-			if (checkCollisionMap(app, &tileMap[y][x]) && app->leftClick) {
-				tileMap[y][x].type = app->clickType;
-				//printf("TYPE: %d\ty: %d\tx: %d\n", tileMap[y][x].type, y, x);
+			if (checkCollisionMap(app, &tile) && app->leftClick) {
+				grid->tile[y][x].type = app->clickType;
+				printf("TYPE: %d\ty: %d\tx: %d\tleftClick: %d\trightClick: %d\tclickType: %d\n", grid->tile[y][x].type, y, x, app->leftClick, app->rightClick, app->clickType);
 			}
-			if (checkCollisionMap(app, &tileMap[y][x]) && app->rightClick) {
-				tileMap[y][x].type = 0;
-				//printf("TYPE: %d\ty: %d\tx: %d\n", tileMap[y][x].type, y, x);
+			if (checkCollisionMap(app, &tile) && app->rightClick) {
+				grid->tile[y][x].type = 0;
+				printf("TYPE: %d\ty: %d\tx: %d\tleftClick: %d\trightClick: %d\tclickType: %d\n", grid->tile[y][x].type, y, x, app->leftClick, app->rightClick, app->clickType);
 			}
 
 			SDL_Color color;
@@ -491,12 +503,18 @@ void doKeyDown(App_s *app, Button_s button[], SDL_KeyboardEvent *event) {
 
 void doKeyUp(App_s *app, SDL_KeyboardEvent *event) {
 	if (event->repeat == 0) {
-		// if (event->keysym.scancode == SDL_SCANCODE_A) {
-		// 	app->left = false;
-		// }
-		// if (event->keysym.scancode == SDL_SCANCODE_D) {
-		// 	app->right = false;
-		// }
+		if (event->keysym.scancode == SDL_SCANCODE_W) {
+			app->up = false;
+		}
+		if (event->keysym.scancode == SDL_SCANCODE_S) {
+			app->down = false;
+		}
+		if (event->keysym.scancode == SDL_SCANCODE_A) {
+			app->left = false;
+		}
+		if (event->keysym.scancode == SDL_SCANCODE_D) {
+			app->right = false;
+		}
 		// if (event->keysym.scancode == SDL_SCANCODE_LSHIFT && player->stamina > 0 && app->sprint ) {
 		// 	player->speed /= SPRINT_SCALAR;
 		// 	app->sprint = false;
