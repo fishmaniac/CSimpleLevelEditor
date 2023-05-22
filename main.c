@@ -126,6 +126,7 @@ void initMenu(App_s *app) {
 	button[2].rect.y = app->windowHeight / 2;
 	button[2].rect.w = 300;
 	button[2].rect.h = 100;
+	button[2].focused = false;
 	char startText[] = "START EDITOR";
 	strcpy_s(button[2].text, sizeof(startText), startText);
 	strcpy_s(button[2].prefix, 1, "");
