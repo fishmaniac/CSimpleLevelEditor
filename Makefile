@@ -1,12 +1,12 @@
 CC := gcc
 CFLAGS := -Isrc/include
 LDFLAGS := -Lsrc/lib
-LIBS := -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf
+LIBS := -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -Wall
 
 all: SimpleLevelEditor
 
 SimpleLevelEditor: main.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS) -Wall
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
 
 .PHONY: clean
 
