@@ -10,7 +10,7 @@ typedef struct {
 	SDL_Window *window;
 	SDL_Point mousePoint;
 	TTF_Font *font;
-	int x, y, mouseX, mouseY, windowWidth, windowHeight;
+	int x, y, mouseX, mouseY, windowWidth, windowHeight, camX, camY, initialWindowWidth, initialWindowHeight, clickType, levelWidth, levelHeight;
 	bool up, down, left, right, leftClick, rightClick, menu;
 } App_s;
 
@@ -24,17 +24,21 @@ typedef struct {
 } Button_s;
 
 typedef struct {
-    int type;
-    SDL_Rect rect;
+	int type;
+	SDL_Rect rect;
+	bool colliding;
 } Tile_s;
 
 #endif
 
-void appLoop(App_s *app);
+void appLoop(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]);
 
 void initMenu(App_s *app);
 void handleTextInput(Button_s *inputBox, SDL_Event event);
+void initMap(Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]);
+void renderMap(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]);
 void checkCollision(App_s *app, Button_s *button);
+bool checkCollisionMap(App_s *app, Tile_s *tile);
 void createButton(App_s *app, Button_s button[]);
 void doInput(App_s *app, Button_s button[]);
 void doKeyUp(App_s *app, SDL_KeyboardEvent *event);
@@ -42,6 +46,7 @@ void doKeyDown(App_s *app, Button_s button[], SDL_KeyboardEvent *event);
 void renderPrepare(App_s *app);
 void initWindow(App_s *app);
 void cleanupWindow(App_s *app);
+void resizeRectangle(Button_s button[], App_s *app);
 
 #ifdef _WIN32
 #ifdef _WIN64
@@ -56,13 +61,24 @@ int WinMain(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
 	App_s app;
+	Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH];
+
 	app.menu = true;
 	app.windowWidth = SCREEN_WIDTH;
 	app.windowHeight = SCREEN_HEIGHT;
+	app.initialWindowWidth = SCREEN_WIDTH;
+	app.initialWindowHeight = SCREEN_HEIGHT;
+	app.levelWidth = MAP_WIDTH;
+	app.levelHeight = MAP_HEIGHT;
+
 	initWindow(&app);
 	initMenu(&app);
 
-	appLoop(&app);
+	initMap(tileMap);
+	
+	app.camX = (SCREEN_WIDTH / 2);
+	app.camY = (SCREEN_HEIGHT / 2);
+	appLoop(&app, tileMap);
 	
 
 	printf("Hello, world!");
@@ -71,25 +87,80 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-void appLoop(App_s *app) {
+void appLoop(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
 	SDL_Rect rect;
-		rect.x = 100;    
-		rect.y = 100;    
-		rect.w = 200;    
-		rect.h = 150;    
-	Button_s button;
+	rect.x = 100;    
+	rect.y = 100;    
+	rect.w = 200;    
+	rect.h = 150;    
+	Button_s button[BUTTON_AMT_APP];
+	button[0].rect.x = 100;
+	button[0].rect.y = 600;
+	button[0].rect.w = 32;
+	button[0].rect.h = 32;
+	button[0].focused = false;
+	char widthText[] = "test:";
+	strcpy_s(button[0].text, sizeof(widthText), widthText);
+	strcpy_s(button[0].prefix, 1, "");
+	button[1].rect.x = 800;
+	button[1].rect.y = 100;
+	button[1].rect.w = 32;
+	button[1].rect.h = 32;
+	button[1].focused = false;
+	char heightText[] = "test3";
+	strcpy_s(button[1].text, sizeof(heightText), heightText);
+	strcpy_s(button[1].prefix, 1, "");
 
+	button[2].rect.x = 450;
+	button[2].rect.y = app->windowHeight / 2;
+	button[2].rect.w = 32;
+	button[2].rect.h = 32;
+	button[2].focused = false;
+	char startText[] = "idk";
+	strcpy_s(button[2].text, sizeof(startText), startText);
+	strcpy_s(button[2].prefix, 1, "");
+	
+	app->clickType = 2;
 
 	while (1) {
 		Uint32 currentFrameTime = SDL_GetTicks();
 		
+
+		doInput(app, button);
 		renderPrepare(app);
-		doInput(app, &button);
+/* 		doInput(app, &button); */
 
 		SDL_SetRenderDrawColor(app->renderer, 255, 0, 0, 255);
 		SDL_RenderFillRect(app->renderer, &rect);
+		renderMap(app, tileMap);
+		createButton(app, button);
+		checkCollision(app, &button[0]);
+		checkCollision(app, &button[1]);
+		checkCollision(app, &button[2]);
 
+
+		SDL_SetRenderDrawColor(app->renderer, 255, 0, 0, 255);
+		SDL_RenderFillRect(app->renderer, &button[0].rect);
+		SDL_RenderCopy(app->renderer, button[0].texture, NULL, &button[0].rect);
+
+		SDL_SetRenderDrawColor(app->renderer, 255, 0, 255, 255);
+		SDL_RenderFillRect(app->renderer, &button[1].rect);
+		SDL_RenderCopy(app->renderer, button[1].texture, NULL, &button[1].rect);
+
+		SDL_SetRenderDrawColor(app->renderer, 0, 0, 255, 255);
+		SDL_RenderFillRect(app->renderer, &button[2].rect);
+		SDL_RenderCopy(app->renderer, button[2].texture, NULL, &button[2].rect);
 		
+		//printf("W: %d H: %d\n", app->windowWidth, app->windowHeight);
+		
+		if (button[0].colliding && button[0].leftClick) {
+			app->clickType = 2;
+		}
+
+		if (button[1].colliding && button[1].leftClick) {
+			app->clickType = 3;
+		}
+
 		SDL_RenderPresent(app->renderer);
 		SDL_RenderClear(app->renderer);
 
@@ -104,28 +175,32 @@ void appLoop(App_s *app) {
 void initMenu(App_s *app) {
 	TTF_Init();
 	Button_s button[BUTTON_AMT];
-	button[0].rect.x = 100;
-	button[0].rect.y = 100;
+	
 	button[0].rect.w = 300;
 	button[0].rect.h = 100;
+	button[0].rect.x = 100;
+	button[0].rect.y = 100;
+
 	char widthPrefix[] = "Level Width: ";
 	char widthText[] = "300";
 	strcpy_s(button[0].text, sizeof(widthText), widthText);
 	strcpy_s(button[0].prefix, sizeof(widthPrefix), widthPrefix);
 
-	button[1].rect.x = 800;
-	button[1].rect.y = 100;
 	button[1].rect.w = 300;
 	button[1].rect.h = 100;
+	button[1].rect.x = app->windowWidth - (button[1].rect.w * 2);
+	button[1].rect.y = button[1].rect.h;
+
 	char heightPrefix[] = "Level Height: ";
 	char heightText[] = "30";
 	strcpy_s(button[1].text, sizeof(heightText), heightText);
 	strcpy_s(button[1].prefix, sizeof(heightPrefix), heightPrefix);
-
-	button[2].rect.x = 450;
-	button[2].rect.y = app->windowHeight / 2;
+	
 	button[2].rect.w = 300;
 	button[2].rect.h = 100;
+	button[2].rect.x = app->windowHeight - (app->windowHeight / 10);
+	button[2].rect.y = app->windowHeight / 2;
+
 	button[2].focused = false;
 	char startText[] = "START EDITOR";
 	strcpy_s(button[2].text, sizeof(startText), startText);
@@ -160,27 +235,20 @@ void initMenu(App_s *app) {
 			SDL_RenderFillRect(app->renderer, &button[2].rect);
 			SDL_RenderCopy(app->renderer, button[2].texture, NULL, &button[2].rect);
 			
-			doInput(app, &button[0]);
-			doInput(app, &button[1]);
-			doInput(app, &button[2]);
-			if (button[0].colliding && button[0].leftClick) {
+			printf("W: %d H: %d\n", app->windowWidth, app->windowHeight);
 
+			doInput(app, button);
+
+			if (button[0].colliding && button[0].leftClick) {
 				button[0].focused = true;
 			}
 			else if (!button[0].colliding) {
-
-
 				button[0].focused = false;
 			}
-
 			if (button[1].colliding && button[1].leftClick) {
-
-
 				button[1].focused = true;
 			}
 			else if (!button[1].colliding) {
-
-
 				button[1].focused = false;
 			}
 			if (button[2].colliding && button[2].leftClick) {
@@ -194,9 +262,10 @@ void initMenu(App_s *app) {
 			if (elapsedTime < FRAME_TIME) {
 			SDL_Delay(FRAME_TIME - elapsedTime);
 			}
-			
-			
 		}
+		app->windowWidth = atoi(button[0].text);
+		app->windowHeight = atoi(button[1].text);
+
 		SDL_DestroyTexture(button[0].texture);
 		SDL_FreeSurface(button[0].surface);
 		SDL_DestroyTexture(button[1].texture);
@@ -206,6 +275,8 @@ void initMenu(App_s *app) {
 
 	}
 }
+
+
 
 void handleTextInput(Button_s button[], SDL_Event event) {
 	for (int i = 0; i < BUTTON_AMT; i++) {
@@ -219,7 +290,6 @@ void initMap(Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
 	for (int y = 0; y < MAP_HEIGHT; y++) {
 		for (int x = 0; x < MAP_WIDTH; x++) {
 			tileMap[y][x].type = 0;
-
 			tileMap[y][x].rect.x = x * TILE_SIZE;
 			tileMap[y][x].rect.y = y * TILE_SIZE;
 			tileMap[y][x].rect.w = TILE_SIZE;
@@ -228,7 +298,46 @@ void initMap(Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
 	}
 }
 
+void renderMap(App_s *app, Tile_s tileMap[MAP_HEIGHT][MAP_WIDTH]) {
+	for (int y = 0; y < MAP_HEIGHT; y++) {
+		for (int x = 0; x < MAP_WIDTH; x++) {
+			Tile_s tile = tileMap[y][x];
+			
+			if (checkCollisionMap(app, &tileMap[y][x]) && app->leftClick) {
+				tileMap[y][x].type = app->clickType;
+				//printf("TYPE: %d\ty: %d\tx: %d\n", tileMap[y][x].type, y, x);
+			}
+			if (checkCollisionMap(app, &tileMap[y][x]) && app->rightClick) {
+				tileMap[y][x].type = 0;
+				//printf("TYPE: %d\ty: %d\tx: %d\n", tileMap[y][x].type, y, x);
+			}
 
+			SDL_Color color;
+			if (tile.type == 0) {
+				color = COLOR_WHITE;
+			} 
+			else if (tile.type == 2) {
+				color = COLOR_BLACK;
+			}
+			else if (tile.type == 3) {
+				color = COLOR_GREEN;
+			}
+
+			SDL_SetRenderDrawColor(app->renderer, color.r, color.g, color.b, color.a);
+			SDL_RenderFillRect(app->renderer, &tile.rect);
+
+			
+		}
+	}
+	// if (collidingTiles > 0) {
+	// 	player->isColliding = true;
+	//
+	// }
+	//
+	// if (!player->isColliding) {
+	// 	player->y += FRAME_TIME;
+	// }
+}
 
 void checkCollision(App_s *app, Button_s *button) {
 	if (SDL_PointInRect(&app->mousePoint, &button->rect)) {
@@ -236,6 +345,17 @@ void checkCollision(App_s *app, Button_s *button) {
 	}
 	else {
 		button->colliding = false;
+	}
+}
+
+bool checkCollisionMap(App_s *app, Tile_s *tile) {
+	if (SDL_PointInRect(&app->mousePoint, &tile->rect)) {
+		tile->colliding = true;
+		return true;
+	}
+	else {
+		tile->colliding = false;
+		return false;
 	}
 }
 
@@ -338,7 +458,8 @@ void doInput(App_s *app, Button_s button[]) {
 					break;
 				}
 			case SDL_WINDOWEVENT:
-				if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
+				if (event.window.event == SDL_WINDOWEVENT_RESIZED || event.window.event == SDL_WINDOW_MAXIMIZED || event.window.event == SDL_WINDOW_MINIMIZED) {
+/* 					resizeRectangle(button, app); */
 					app->windowWidth = event.window.data1;
 					app->windowHeight = event.window.data2;
 				}
@@ -348,8 +469,6 @@ void doInput(App_s *app, Button_s button[]) {
 		}
 	}
 }
-
-
 
 void doKeyDown(App_s *app, Button_s button[], SDL_KeyboardEvent *event) {
 	for (int i = 0; i < BUTTON_AMT; i++) {
@@ -384,3 +503,26 @@ void doKeyUp(App_s *app, SDL_KeyboardEvent *event) {
 		// }
 	}
 }
+
+void resizeRectangle(Button_s button[], App_s* app) {
+	
+	for (int i = 0; i < BUTTON_AMT; i++) {
+		while (app->windowWidth > app->initialWindowWidth) {
+			SDL_GetWindowSize(app->window, &app->windowWidth, &app->windowWidth);
+			button[i].rect.w += 1;
+		}
+		while (app->windowWidth < app->initialWindowWidth) {
+			SDL_GetWindowSize(app->window, &app->windowWidth, &app->windowWidth);
+			button[i].rect.w -= 1;
+		}
+		while (app->windowHeight > app->initialWindowHeight) {
+			SDL_GetWindowSize(app->window, &app->windowWidth, &app->windowWidth);
+			button[i].rect.h += 1;
+		}
+		while (app->windowHeight < app->initialWindowHeight) {
+			SDL_GetWindowSize(app->window, &app->windowWidth, &app->windowWidth);
+			button[i].rect.h -= 1;
+		}
+	}
+}
+
