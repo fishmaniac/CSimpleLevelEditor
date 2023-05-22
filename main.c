@@ -45,8 +45,8 @@ void initMenu(App_s *app);
 void handleTextInput(Button_s *inputBox, SDL_Event event, App_s *app);
 Grid_s *initMap(unsigned width, unsigned height);
 void renderMap(App_s *app, Grid_s *grid);
-void readMap(Grid_s *grid, char level[]);
-void writeMap(Grid_s *grid, char level[]);
+void readMap(Grid_s *grid, App_s *app, char level[]);
+void writeMap(Grid_s *grid, App_s *app, char level[]);
 void checkCollision(App_s *app, Button_s *button);
 bool checkCollisionMap(App_s *app, Tile_s *tile);
 void createButton(App_s *app, Button_s button[]);
@@ -73,8 +73,6 @@ int main(int argc, char* argv[]) {
 	Grid_s *grid;
 
 	app.menu = true;
-	// app.windowWidth = SCREEN_WIDTH;
-	// app.windowHeight = SCREEN_HEIGHT;
 	app.initialWindowWidth = SCREEN_WIDTH;
 	app.initialWindowHeight = SCREEN_HEIGHT;
 	app.levelWidth = MAP_WIDTH;
@@ -95,7 +93,7 @@ int main(int argc, char* argv[]) {
 	grid = initMap(app.levelWidth, app.levelHeight);
 	
 	if (app.readMap) {
-		readMap(grid, app.levelFile);
+		readMap(grid, &app, app.levelFile);
 	}
 
 	appLoop(&app, grid);
@@ -169,8 +167,6 @@ void appLoop(App_s *app, Grid_s *grid) {
 		SDL_RenderFillRect(app->renderer, &button[2].rect);
 		SDL_RenderCopy(app->renderer, button[2].texture, NULL, &button[2].rect);
 		
-		//printf("W: %d H: %d\n", app->windowWidth, app->windowHeight);
-		
 		if (button[0].colliding && button[0].leftClick) {
 			app->clickType = 2;
 		}
@@ -179,7 +175,7 @@ void appLoop(App_s *app, Grid_s *grid) {
 			app->clickType = 3;
 		}
 		if (button[2].colliding && button[2].leftClick) {
-			writeMap(grid, "out.txt");
+			writeMap(grid, app, app->levelFile);
 		}
 		if (app->up) {
 			app->y -= 1;
@@ -275,6 +271,16 @@ void initMenu(App_s *app) {
 	strcpy_s(button[4].text, sizeof(fileText), fileText);
 	strcpy_s(button[4].prefix, 1, "");
 
+	button[5].rect.w = button[2].rect.w;
+	button[5].rect.h = button[0].rect.h;
+	button[5].rect.x = button[3].rect.w + button[3].rect.x;
+	button[5].rect.y = button[2].rect.y;
+
+	button[5].focused = false;
+	char saveText[] = "out.txt";
+	strcpy_s(button[5].text, sizeof(saveText), saveText);
+	strcpy_s(button[5].prefix, 1, "");
+
 	app->font = TTF_OpenFont("assets/font/slkscr.ttf", FONT_SIZE);
 	if (app->font == NULL) {
 		SDL_LogCritical(SDL_LOG_CATEGORY_APPLICATION, "UNABLE TO LOAD FONT %p\n", app->font);
@@ -292,7 +298,7 @@ void initMenu(App_s *app) {
 			checkCollision(app, &button[2]);
 			checkCollision(app, &button[3]);
 			checkCollision(app, &button[4]);
-
+			checkCollision(app, &button[5]);
 
 			SDL_SetRenderDrawColor(app->renderer, COLOR_RED.r, COLOR_RED.g, COLOR_RED.b, 150);
 			SDL_RenderFillRect(app->renderer, &button[0].rect);
@@ -313,6 +319,10 @@ void initMenu(App_s *app) {
 			SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 150);
 			SDL_RenderFillRect(app->renderer, &button[4].rect);
 			SDL_RenderCopy(app->renderer, button[4].texture, NULL, &button[4].rect);
+
+			SDL_SetRenderDrawColor(app->renderer, 255, 255, 255, 150);
+			SDL_RenderFillRect(app->renderer, &button[5].rect);
+			SDL_RenderCopy(app->renderer, button[5].texture, NULL, &button[5].rect);
 			
 			doInput(app, button);
 
@@ -334,10 +344,18 @@ void initMenu(App_s *app) {
 			else if (!button[4].colliding) {
 				button[4].focused = false;
 			}
+			if (button[5].colliding && button[5].leftClick) {
+				button[5].focused = true;
+			}
+			else if (!button[5].colliding) {
+				button[5].focused = false;
+			}
 			if (button[2].colliding && button[2].leftClick) {
+				strcpy_s(app->levelFile, sizeof(button[5].text), button[5].text);
 				app->menu = false;
 			}
 			if (button[3].colliding && button[3].leftClick) {
+				strcpy_s(app->levelFile, sizeof(button[4].text), button[4].text);
 				app->readMap = true;
 				app->menu = false;
 			}
@@ -352,7 +370,7 @@ void initMenu(App_s *app) {
 		}
 		app->levelWidth = atoi(button[0].text);
 		app->levelHeight = atoi(button[1].text);
-		strcpy_s(app->levelFile, sizeof(button[4].text), button[4].text);
+		
 
 		SDL_DestroyTexture(button[0].texture);
 		SDL_FreeSurface(button[0].surface);
@@ -431,7 +449,7 @@ void renderMap(App_s *app, Grid_s *grid) {
 	}
 }
 
-void readMap(Grid_s *grid, char level[]) {
+void readMap(Grid_s *grid, App_s *app, char level[]) {
 	FILE *file;
 	errno_t err = fopen_s(&file, level, "r");
 	char value;
@@ -441,8 +459,8 @@ void readMap(Grid_s *grid, char level[]) {
  		exit(1);
 	}
 	else {
-		for (int y = 0; y < MAP_HEIGHT; y++) {
-			for (int x = 0; x < MAP_WIDTH; x++) {
+		for (int y = 0; y < app->levelHeight; y++) {
+			for (int x = 0; x < app->levelWidth; x++) {
 				fscanf_s(file, "%c ", &value);
 				grid->tile[y][x].type = ((int) value) - '0';
 			}
@@ -451,7 +469,7 @@ void readMap(Grid_s *grid, char level[]) {
 	fclose(file);
 }
 
-void writeMap(Grid_s *grid, char level[]) {
+void writeMap(Grid_s *grid, App_s *app, char level[]) {
 	FILE *file;
 	errno_t err = fopen_s(&file, level, "w+");
 	char value;
@@ -461,8 +479,8 @@ void writeMap(Grid_s *grid, char level[]) {
  		exit(1);
 	}
 	else {
-		for (int y = 0; y < MAP_HEIGHT; y++) {
-			for (int x = 0; x < MAP_WIDTH; x++) {
+		for (int y = 0; y < app->levelHeight; y++) {
+			for (int x = 0; x < app->levelWidth; x++) {
 				value = grid->tile[y][x].type + '0';
 				fprintf_s(file, "%c", value);
 			}
@@ -494,8 +512,8 @@ bool checkCollisionMap(App_s *app, Tile_s *tile) {
 void createButton(App_s *app, Button_s button[]) {
 	for (int i = 0; i < app->buttonAmt; i++) {
 		char prefixedText[2 * MAX_TEXT];
-		strcpy(prefixedText, button[i].prefix);
-		strcat(prefixedText, button[i].text);
+		strcpy_s(prefixedText, sizeof(button[i].prefix), button[i].prefix);
+		strcat_s(prefixedText, sizeof(prefixedText), button[i].text);
 
 		button[i].surface = TTF_RenderText_Solid(app->font, prefixedText, COLOR_BLACK);
 		button[i].texture = SDL_CreateTextureFromSurface(app->renderer, button[i].surface);
@@ -611,7 +629,7 @@ void doKeyDown(App_s *app, Button_s button[], SDL_KeyboardEvent *event) {
 					button[i].text[len - 1] = '\0';
 					len--;
 					if (len == 0) {
-						strcpy(button[i].text, " ");
+						strcpy_s(button[i].text, sizeof(button[i].text), " ");
 					}
 				}
 			}

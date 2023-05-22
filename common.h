@@ -25,7 +25,7 @@
 #define FONT_SIZE 16
 #define MAX_TEXT 100
 
-#define BUTTON_AMT 5
+#define BUTTON_AMT 6
 #define BUTTON_AMT_APP 3
 
 #define RECT_W_MAX 900
